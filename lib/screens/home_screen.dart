@@ -1,113 +1,68 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/delivery_provider.dart';
-import '../models/delivery_model.dart';
 import '../models/user_model.dart';
 
-class HomeScreen extends ConsumerWidget {
-  final User user; // <-- Ajouter ça
+class HomeScreen extends StatelessWidget {
+  final User user;
 
-  HomeScreen({required this.user, Key? key})
-    : super(key: key); // <-- Constructeur
+  const HomeScreen({required this.user, Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final deliveries = ref.watch(deliveryProvider);
-
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("RoutePulse - ${user.username}")),
-      body: ListView.builder(
-        itemCount: deliveries.length,
-        itemBuilder: (context, index) {
-          final delivery = deliveries[index];
-
-          return Card(
-            margin: EdgeInsets.all(8),
-            child: ListTile(
-              title: Text(delivery.client),
-              subtitle: Text("${delivery.address} • ${delivery.status}"),
-              trailing: PopupMenuButton<String>(
-                onSelected: (value) async {
-                  if (value == "LIVREE") {
-                    await ref
-                        .read(deliveryProvider.notifier)
-                        .updateStatus(
-                          delivery,
-                          "LIVREE",
-                        ); // <-- passer l'objet Delivery
-                  } else if (value == "ANNULLEE") {
-                    await ref
-                        .read(deliveryProvider.notifier)
-                        .updateStatus(
-                          delivery,
-                          "ANNULLEE",
-                        ); // <-- passer l'objet Delivery
-                  } else if (value == "SUPPRIMER") {
-                    await ref
-                        .read(deliveryProvider.notifier)
-                        .deleteDelivery(delivery.id!); // <-- id
-                  }
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(value: "LIVREE", child: Text("Livrée")),
-                  PopupMenuItem(value: "ANNULLEE", child: Text("Annulée")),
-                  PopupMenuItem(value: "SUPPRIMER", child: Text("Supprimer")),
-                ],
-              ),
-            ),
-          );
-        },
+      appBar: AppBar(
+        title: Text("RoutePulse - ${user.username}"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              // futur : paramètres / changer mot de passe
+            },
+          ),
+        ],
       ),
-      floatingActionButton: user.isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _showAddDialog(context, ref),
-              child: Icon(Icons.add),
-            )
-          : null,
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          children: [
+            _buildCard(context, Icons.add_box, "Créer une livraison"),
+            _buildCard(context, Icons.list, "Livraisons du jour"),
+            _buildCard(context, Icons.map, "Voir la carte"),
+            _buildCard(context, Icons.check_circle, "Valider / Reporter"),
+            _buildCard(context, Icons.bar_chart, "Statistiques"),
+            _buildCard(context, Icons.local_shipping, "Véhicules"),
+            _buildCard(context, Icons.people, "Clients"),
+          ],
+        ),
+      ),
     );
   }
 
-  void _showAddDialog(BuildContext context, WidgetRef ref) {
-    final clientController = TextEditingController();
-    final addressController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text("Nouvelle livraison"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _buildCard(BuildContext context, IconData icon, String title) {
+    return GestureDetector(
+      onTap: () {
+        // navigation future
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("$title cliqué")));
+      },
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              controller: clientController,
-              decoration: InputDecoration(labelText: "Client"),
-            ),
-            TextField(
-              controller: addressController,
-              decoration: InputDecoration(labelText: "Adresse"),
+            Icon(icon, size: 40),
+            SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Annuler"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newDelivery = Delivery(
-                client: clientController.text,
-                address: addressController.text,
-                status: "EN_ATTENTE",
-              );
-              await ref
-                  .read(deliveryProvider.notifier)
-                  .addDelivery(newDelivery);
-              Navigator.pop(context);
-            },
-            child: Text("Ajouter"),
-          ),
-        ],
       ),
     );
   }

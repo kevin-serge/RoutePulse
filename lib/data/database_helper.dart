@@ -17,22 +17,24 @@ class DatabaseHelper {
     return _db!;
   }
 
-  // Initialisation de la BDD
   Future<Database> _initDb() async {
     final path = join(await getDatabasesPath(), 'routepulse.db');
     return await openDatabase(path, version: 1, onCreate: _onCreate);
   }
 
   Future<void> _onCreate(Database db, int version) async {
+    // Table livraisons
     await db.execute('''
       CREATE TABLE deliveries(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client TEXT NOT NULL,
         address TEXT NOT NULL,
-        status TEXT NOT NULL
+        status TEXT NOT NULL,
+        assignedTo TEXT DEFAULT ''
       )
     ''');
 
+    // Table utilisateurs
     await db.execute('''
       CREATE TABLE users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,12 +43,25 @@ class DatabaseHelper {
         isAdmin INTEGER NOT NULL
       )
     ''');
-    // 🔹 Compte admin par défaut
+
+    // Compte admin par défaut
     await db.insert('users', {
       'username': 'admin',
       'password': 'admin123',
       'isAdmin': 1,
     });
+  }
+
+  Future<void> upgradeDatabase(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE deliveries ADD COLUMN assignedTo TEXT DEFAULT ""',
+      );
+    }
   }
 
   // ================= CRUD Livraisons =================
@@ -63,7 +78,7 @@ class DatabaseHelper {
 
   Future<int> updateDelivery(Delivery delivery) async {
     final db = await database;
-    if (delivery.id == null) return 0; // Sécurité
+    if (delivery.id == null) return 0;
     return await db.update(
       'deliveries',
       delivery.toMap(),
@@ -91,9 +106,7 @@ class DatabaseHelper {
       whereArgs: [username, password],
       limit: 1,
     );
-    if (res.isNotEmpty) {
-      return User.fromMap(res.first);
-    }
+    if (res.isNotEmpty) return User.fromMap(res.first);
     return null;
   }
 

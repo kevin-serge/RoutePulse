@@ -32,11 +32,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final user = await db.getUser(username, password);
     if (user != null) {
-      // connexion réussie
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => AdminScreen(user: user)),
-      );
+      // Connexion réussie, redirection selon le rôle
+      if (user.isAdmin) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => AdminScreen(user: user)),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
+        );
+      }
     } else {
       ScaffoldMessenger.of(
         context,

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../data/database_helper.dart';
+import '../screens/add_livreur_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   final User user;
 
-  AdminScreen({required this.user});
+  const AdminScreen({required this.user, Key? key}) : super(key: key);
 
   @override
   _AdminScreenState createState() => _AdminScreenState();
@@ -14,6 +15,7 @@ class AdminScreen extends StatefulWidget {
 class _AdminScreenState extends State<AdminScreen> {
   final db = DatabaseHelper();
 
+  // 🔐 Popup changement mot de passe
   void _showChangePasswordDialog() {
     final oldPassController = TextEditingController();
     final newPassController = TextEditingController();
@@ -61,7 +63,6 @@ class _AdminScreenState extends State<AdminScreen> {
                 return;
               }
 
-              // mise à jour
               final updatedUser = User(
                 id: widget.user.id,
                 username: widget.user.username,
@@ -84,23 +85,49 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // 🎯 Gestion menu settings
+  void _handleMenuSelection(String value) {
+    if (value == "password") {
+      _showChangePasswordDialog();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Admin Panel")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text("Bienvenue Admin ${widget.user.username}"),
-            SizedBox(height: 20),
+      appBar: AppBar(
+        title: Text("Admin Panel"),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: _handleMenuSelection,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: "password",
+                child: Text("Changer mot de passe"),
+              ),
+            ],
+            icon: Icon(Icons.settings), // ⚙️ en haut à droite
+          ),
+        ],
+      ),
 
-            ElevatedButton(
-              onPressed: _showChangePasswordDialog,
-              child: Text("Changer mot de passe"),
-            ),
-          ],
+      // 🔥 CONTENU PRINCIPAL
+      body: Center(
+        child: Text(
+          "Bienvenue Admin ${widget.user.username}",
+          style: TextStyle(fontSize: 18),
         ),
+      ),
+
+      // 🚀 bouton principal futur (ajouter livreur)
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => AddLivreurScreen()),
+          );
+        },
+        child: Icon(Icons.person_add),
       ),
     );
   }
