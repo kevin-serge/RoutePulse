@@ -11,74 +11,142 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _isLoading = false;
 
   final db = DatabaseHelper();
 
+  // 🔥 Validation email
+  bool isValidEmail(String email) {
+    return RegExp(r"^[^@]+@[^@]+\.[^@]+").hasMatch(email);
+  }
+
   void _login() async {
-    setState(() => _isLoading = true);
-    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Remplis tous les champs")));
-      setState(() => _isLoading = false);
+    // 🔥 Vérifications
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage("Remplis tous les champs");
       return;
     }
 
-    final user = await db.getUser(username, password);
-    if (user != null) {
-      // Connexion réussie, redirection selon le rôle
-      if (user.isAdmin) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => AdminScreen(user: user)),
-        );
+    if (!isValidEmail(email)) {
+      _showMessage("Email invalide");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = await db.getUser(email, password);
+
+      if (user != null) {
+        // 🔥 Navigation selon rôle
+        if (user.isAdmin) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => AdminScreen(user: user)),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
+          );
+        }
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
-        );
+        _showMessage("Identifiants incorrects");
       }
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Identifiants incorrects")));
+    } catch (e) {
+      _showMessage("Erreur : ${e.toString()}");
     }
 
     setState(() => _isLoading = false);
   }
 
+  // 🔥 SnackBar propre
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Login")),
-      body: Center(
+      body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              TextField(
-                controller: _usernameController,
-                decoration: InputDecoration(labelText: "Nom d'utilisateur"),
+              // 🔥 Logo / Titre
+              const Icon(Icons.local_shipping, size: 80, color: Colors.blue),
+              const SizedBox(height: 10),
+              const Text(
+                "RoutePulse",
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 30),
+
+              // 🔥 Email
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              // 🔥 Password
               TextField(
                 controller: _passwordController,
-                decoration: InputDecoration(labelText: "Mot de passe"),
                 obscureText: true,
+                decoration: InputDecoration(
+                  labelText: "Mot de passe",
+                  prefixIcon: Icon(Icons.lock),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-              SizedBox(height: 20),
+
+              const SizedBox(height: 20),
+
+              // 🔥 Bouton
               _isLoading
-                  ? CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _login,
-                      child: Text("Se connecter"),
+                  ? const CircularProgressIndicator()
+                  : SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _login,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.all(14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text("Se connecter"),
+                      ),
                     ),
+
+              const SizedBox(height: 10),
+
+              // 🔥 Bonus futur
+              TextButton(
+                onPressed: () {
+                  // TODO: écran inscription
+                },
+                child: const Text("Créer un compte"),
+              ),
             ],
           ),
         ),

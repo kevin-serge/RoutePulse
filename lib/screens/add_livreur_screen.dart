@@ -8,73 +8,121 @@ class AddLivreurScreen extends StatefulWidget {
 }
 
 class _AddLivreurScreenState extends State<AddLivreurScreen> {
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final db = DatabaseHelper();
 
   bool _isLoading = false;
 
   void _createLivreur() async {
-    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Remplis tous les champs")));
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage("Remplis tous les champs");
+      return;
+    }
+
+    // Validation email
+    if (!RegExp(r"^[^@]+@[^@]+\.[^@]+").hasMatch(email)) {
+      _showMessage("Email invalide");
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      await db.insertUser(
-        User(
-          username: username,
-          password: password,
-          isAdmin: false, // 🚚 livreur
-        ),
-      );
+      // Vérifie si l'utilisateur existe déjà
+      final exists = await db.userExists(email);
+      if (exists) {
+        _showMessage("Email déjà utilisé");
+      } else {
+        await db.insertUser(
+          User(
+            email: email,
+            password:
+                password, // sera hashé automatiquement dans DatabaseHelper
+            isAdmin: false, // 🚚 livreur
+          ),
+        );
 
-      Navigator.pop(context); // retour admin
+        _showMessage("Livreur créé avec succès");
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Livreur créé avec succès")));
+        Navigator.pop(
+          context,
+          true,
+        ); // signale que le livreur a été ajouté// retour à l'écran admin
+      }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Username déjà utilisé")));
+      _showMessage("Erreur : ${e.toString()}");
     }
 
     setState(() => _isLoading = false);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Ajouter Livreur")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _usernameController,
-              decoration: InputDecoration(labelText: "Username"),
-            ),
-            TextField(
-              controller: _passwordController,
-              decoration: InputDecoration(labelText: "Mot de passe"),
-              obscureText: true,
-            ),
-            SizedBox(height: 20),
-            _isLoading
-                ? CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _createLivreur,
-                    child: Text("Créer"),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // 🔥 Email
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-          ],
+                ),
+              ),
+
+              SizedBox(height: 15),
+
+              // 🔥 Mot de passe
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: "Mot de passe",
+                  prefixIcon: Icon(Icons.lock),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // 🔥 Bouton créer
+              _isLoading
+                  ? CircularProgressIndicator()
+                  : SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _createLivreur,
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.all(14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text("Créer"),
+                      ),
+                    ),
+            ],
+          ),
         ),
       ),
     );

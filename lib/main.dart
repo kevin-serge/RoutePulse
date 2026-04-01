@@ -7,7 +7,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final db = DatabaseHelper();
-  await db.database; // seulement initialisation
+
+  // 🔹 Initialisation de la base
+  await db.database;
+
+  // 🔹 S'assurer qu'un compte admin par défaut existe
+  await db.ensureAdminExists();
 
   runApp(ProviderScope(child: MyApp()));
 }

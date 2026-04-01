@@ -10,59 +10,89 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("RoutePulse - ${user.username}"),
+        title: Text("RoutePulse - ${user.email}"),
         actions: [
           IconButton(
-            icon: Icon(Icons.settings),
+            icon: const Icon(Icons.settings),
             onPressed: () {
-              // futur : paramètres / changer mot de passe
+              // TODO: paramètres
             },
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
+
+      body: Column(
+        children: [
+          // 🔥 Bandeau statut rapide
+          _buildStatusBanner(),
+
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                children: [
+                  _buildCard(context, Icons.list, "Livraisons du jour"),
+                  _buildCard(context, Icons.map, "Carte & itinéraire"),
+                  _buildCard(context, Icons.check_circle, "Valider livraison"),
+                  _buildCard(context, Icons.warning, "Reporter / Annuler"),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔥 Carte UI
+  Widget _buildCard(BuildContext context, IconData icon, String title) {
+    return GestureDetector(
+      onTap: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("$title cliqué")));
+      },
+      child: Card(
+        elevation: 5,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildCard(context, Icons.add_box, "Créer une livraison"),
-            _buildCard(context, Icons.list, "Livraisons du jour"),
-            _buildCard(context, Icons.map, "Voir la carte"),
-            _buildCard(context, Icons.check_circle, "Valider / Reporter"),
-            _buildCard(context, Icons.bar_chart, "Statistiques"),
-            _buildCard(context, Icons.local_shipping, "Véhicules"),
-            _buildCard(context, Icons.people, "Clients"),
+            Icon(icon, size: 42, color: Colors.blue),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCard(BuildContext context, IconData icon, String title) {
-    return GestureDetector(
-      onTap: () {
-        // navigation future
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("$title cliqué")));
-      },
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 40),
-            SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
+  // 🔥 Bandeau statut dynamique
+  Widget _buildStatusBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            "Statut : En attente",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Icon(Icons.timelapse),
+        ],
       ),
     );
   }
