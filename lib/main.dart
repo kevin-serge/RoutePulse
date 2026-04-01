@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'models/delivery_model.dart';
-import 'screens/home_screen.dart';
+import 'data/database_helper.dart';
+import 'screens/login_screen.dart';
+import 'models/user_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Hive.initFlutter();
-  Hive.registerAdapter(DeliveryAdapter());
-  await Hive.openBox<Delivery>('deliveries');
+  // Initialiser la base SQLite
+  final db = DatabaseHelper();
+  await db.database; // crée la DB si elle n'existe pas
+
+  // Créer un compte admin par défaut si aucun utilisateur
+  final users = await db.getUser("admin", "admin123");
+  if (users == null) {
+    await db.insertUser(
+      User(username: "admin", password: "admin123", isAdmin: true),
+    );
+  }
 
   runApp(ProviderScope(child: MyApp()));
 }
@@ -20,7 +28,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'RoutePulse',
-      home: HomeScreen(),
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: LoginScreen(),
     );
   }
 }

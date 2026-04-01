@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import '../models/delivery_model.dart';
+import '../data/database_helper.dart';
 
 final deliveryProvider =
     StateNotifierProvider<DeliveryNotifier, List<Delivery>>((ref) {
@@ -8,29 +8,28 @@ final deliveryProvider =
     });
 
 class DeliveryNotifier extends StateNotifier<List<Delivery>> {
-  late Box<Delivery> _box;
+  final db = DatabaseHelper();
 
   DeliveryNotifier() : super([]) {
-    _box = Hive.box<Delivery>('deliveries');
-    state = _box.values.toList(); // charge les livraisons depuis Hive
+    loadDeliveries();
   }
 
-  void addDelivery(Delivery delivery) {
-    _box.add(delivery);
-    state = _box.values.toList();
+  Future<void> loadDeliveries() async {
+    state = await db.getDeliveries();
   }
 
-  void updateStatus(int index, String status) {
-    final delivery = _box.getAt(index);
-    if (delivery != null) {
-      delivery.status = status;
-      delivery.save();
-      state = _box.values.toList();
-    }
+  Future<void> addDelivery(Delivery d) async {
+    await db.insertDelivery(d);
+    await loadDeliveries();
   }
 
-  void deleteDelivery(int index) {
-    _box.deleteAt(index);
-    state = _box.values.toList();
+  Future<void> updateStatus(Delivery d, String status) async {
+    await db.updateDelivery(d.copyWith(status: status));
+    await loadDeliveries();
+  }
+
+  Future<void> deleteDelivery(int id) async {
+    await db.deleteDelivery(id);
+    await loadDeliveries();
   }
 }
