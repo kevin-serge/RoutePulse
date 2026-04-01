@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database_helper.dart';
 import '../models/user_model.dart';
 import 'home_screen.dart';
+import 'admin_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   @override
@@ -34,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // connexion réussie
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
+        MaterialPageRoute(builder: (_) => AdminScreen(user: user)),
       );
     } else {
       ScaffoldMessenger.of(

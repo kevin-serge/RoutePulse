@@ -44,15 +44,8 @@ class DatabaseHelper {
     // 🔹 Compte admin par défaut
     await db.insert('users', {
       'username': 'admin',
-      'password': 'admin123', // 🔑 mot de passe test
-      'isAdmin': 1, // 1 = admin
-    });
-
-    // 🔹 Compte livreur test
-    await db.insert('users', {
-      'username': 'livreur1',
-      'password': 'livreur123',
-      'isAdmin': 0, // 0 = livreur
+      'password': 'admin123',
+      'isAdmin': 1,
     });
   }
 
@@ -108,5 +101,25 @@ class DatabaseHelper {
     final db = await database;
     final res = await db.query('users', orderBy: 'id ASC');
     return res.map((e) => User.fromMap(e)).toList();
+  }
+
+  Future<int> updateUser(User user) async {
+    final db = await database;
+    return await db.update(
+      'users',
+      user.toMap(),
+      where: 'id = ?',
+      whereArgs: [user.id],
+    );
+  }
+
+  Future<bool> userExists(String username) async {
+    final db = await database;
+    final res = await db.query(
+      'users',
+      where: 'username = ?',
+      whereArgs: [username],
+    );
+    return res.isNotEmpty;
   }
 }
