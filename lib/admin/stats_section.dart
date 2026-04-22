@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../data/database_helper.dart';
+import '../repository/livraison_repository.dart';
+import '../model/livraison_model.dart';
+import '../model/user_model.dart';
+import '../widget/rp_widgets.dart';
 
 class StatsSection extends StatefulWidget {
   const StatsSection({Key? key}) : super(key: key);
@@ -9,19 +12,14 @@ class StatsSection extends StatefulWidget {
 }
 
 class _StatsSectionState extends State<StatsSection> {
-  final db = DatabaseHelper();
+  final repo = LivraisonRepository();
 
-  int totalLivraisons = 0;
-  int livrees = 0;
-  int enAttente = 0;
-  int enCours = 0;
-  int echec = 0;
-
-  int totalLivreurs = 0;
-  int dispo = 0;
-  int enService = 0;
-
-  double tauxReussite = 0;
+  bool _loading = true;
+  Map<String, int> _statsStatuts = {};
+  int _totalLivraisons = 0;
+  int _totalLivreurs = 0;
+  List<Livraison> _livraisons = [];
+  List<User> _livreurs = [];
 
   @override
   void initState() {
@@ -30,86 +28,288 @@ class _StatsSectionState extends State<StatsSection> {
   }
 
   Future<void> _loadStats() async {
-    final livraisons = await db.getAllLivraisons();
-    final livreurs = await db.getAllLivreurs();
+    setState(() => _loading = true);
 
-    setState(() {
-      totalLivraisons = livraisons.length;
+    _statsStatuts = await repo.getStatsStatuts();
+    _livraisons = await repo.getAllLivraisons();
+    _livreurs = await repo.getAllLivreurs();
+    _totalLivraisons = _livraisons.length;
+    _totalLivreurs = _livreurs.length;
 
-      livrees = livraisons.where((l) => l.statut == "livree").length;
-      enAttente = livraisons.where((l) => l.statut == "en_attente").length;
-      enCours = livraisons.where((l) => l.statut == "en_cours").length;
-      echec = livraisons.where((l) => l.statut == "echec").length;
-
-      totalLivreurs = livreurs.length;
-      dispo = livreurs.where((l) => l.status == "disponible").length;
-      enService = livreurs.where((l) => l.status == "en livraison").length;
-
-      tauxReussite = totalLivraisons == 0
-          ? 0
-          : (livrees / totalLivraisons) * 100;
-    });
+    setState(() => _loading = false);
   }
 
-  Widget _buildCard(String title, String value, IconData icon) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon, size: 30),
-        title: Text(title),
-        trailing: Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
+  double get _tauxReussite {
+    if (_totalLivraisons == 0) return 0;
+    final livrees = _statsStatuts['livree'] ?? 0;
+    return livrees / _totalLivraisons * 100;
+  }
+
+  double get _tauxRetard {
+    if (_totalLivraisons == 0) return 0;
+    final reporters = _statsStatuts['a_reporter'] ?? 0;
+    return reporters / _totalLivraisons * 100;
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
+    return RefreshIndicator(
+      onRefresh: _loadStats,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── KPI CARDS
           const Text(
-            "📊 Dashboard Statistiques",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            'Vue d\'ensemble',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: RPColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                  child: _kpiCard('Total livraisons', '$_totalLivraisons',
+                      Icons.local_shipping, RPColors.enCours)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _kpiCard('Livreurs actifs', '$_totalLivreurs',
+                      Icons.people, RPColors.primary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                  child: _kpiCard(
+                      'Taux de réussite',
+                      '${_tauxReussite.toStringAsFixed(0)}%',
+                      Icons.check_circle_outline,
+                      RPColors.livree)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _kpiCard(
+                      'Taux de report',
+                      '${_tauxRetard.toStringAsFixed(0)}%',
+                      Icons.schedule,
+                      RPColors.aReporter)),
+            ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // 📦 LIVRAISONS
-          _buildCard("Total livraisons", "$totalLivraisons", Icons.local_shipping),
-          _buildCard("Livrées", "$livrees", Icons.check_circle),
-          _buildCard("En attente", "$enAttente", Icons.hourglass_empty),
-          _buildCard("En cours", "$enCours", Icons.directions_run),
-          _buildCard("Échecs", "$echec", Icons.error),
+          // ── RÉPARTITION PAR STATUT
+          const Text(
+            'Répartition par statut',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: RPColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
 
-          const SizedBox(height: 20),
+          ..._statsStatuts.entries
+              .where((e) => e.value > 0)
+              .map((e) => _statutBar(e.key, e.value))
+              .toList(),
 
-          // 👤 LIVREURS
-          _buildCard("Total livreurs", "$totalLivreurs", Icons.people),
-          _buildCard("Disponibles", "$dispo", Icons.person),
-          _buildCard("En service", "$enService", Icons.delivery_dining),
+          const SizedBox(height: 24),
 
-          const SizedBox(height: 20),
+          // ── LIVREURS PERFORMANCE
+          const Text(
+            'Performance par livreur',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: RPColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
 
-          // 📈 KPI
-          Card(
-            color: Colors.blue.shade50,
-            child: ListTile(
-              leading: const Icon(Icons.show_chart),
-              title: const Text("Taux de réussite"),
-              trailing: Text(
-                "${tauxReussite.toStringAsFixed(1)}%",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+          ..._livreurs.map((livreur) {
+            final ses = _livraisons
+                .where((l) => l.livreurId == livreur.id)
+                .toList();
+            final livrees =
+                ses.where((l) => l.statut == 'livree').length;
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor:
+                          RPColors.primary.withValues(alpha: 0.12),
+                      child: Text(
+                        livreur.email[0].toUpperCase(),
+                        style: const TextStyle(
+                            color: RPColors.primary,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            livreur.email,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '${ses.length} livraisons • $livrees livrées',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: RPColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (livreur.distanceParcourue > 0)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${livreur.distanceParcourue.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                color: RPColors.primary),
+                          ),
+                          const Text('km',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: RPColors.textSecondary)),
+                        ],
+                      ),
+                  ],
                 ),
               ),
+            );
+          }).toList(),
+
+          if (_livreurs.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: Text(
+                  'Aucun livreur enregistré',
+                  style: TextStyle(color: RPColors.textSecondary),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiCard(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: RPColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: RPColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statutBar(String statut, int count) {
+    final total = _totalLivraisons == 0 ? 1 : _totalLivraisons;
+    final pct = count / total;
+    final label = Livraison.statutLabel(statut);
+
+    Color color;
+    switch (statut) {
+      case 'en_attente':
+        color = RPColors.enAttente;
+        break;
+      case 'en_cours':
+        color = RPColors.enCours;
+        break;
+      case 'a_reporter':
+        color = RPColors.aReporter;
+        break;
+      case 'annulee':
+        color = RPColors.annulee;
+        break;
+      case 'livree':
+        color = RPColors.livree;
+        break;
+      default:
+        color = RPColors.textSecondary;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StatutBadge(statut),
+              const Spacer(),
+              Text(
+                '$count',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: RPColors.textPrimary),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '(${(pct * 100).toStringAsFixed(0)}%)',
+                style: const TextStyle(
+                    fontSize: 12, color: RPColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 8,
+              backgroundColor: color.withValues(alpha: 0.15),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
         ],

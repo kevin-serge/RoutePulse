@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../model/user_model.dart';
-import 'livreurs_section.dart';
+import '../widget/rp_widgets.dart';
 import 'livraisons_section.dart';
+import 'livreurs_section.dart';
 import 'stats_section.dart';
 
 class AccueilAdmin extends StatefulWidget {
   final User admin;
-
   const AccueilAdmin({required this.admin, Key? key}) : super(key: key);
 
   @override
@@ -14,55 +14,76 @@ class AccueilAdmin extends StatefulWidget {
 }
 
 class _AccueilAdminState extends State<AccueilAdmin> {
-  int selectedIndex = 0;
+  int _selectedIndex = 0;
 
-  late final List<Widget> pages;
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-
-    pages = [
-      LivreursSection(), // 👤 ton code déplacé ici
-      LivraisonsSection(), // 📦 nouveau module
-      StatsSection(), // 📈 statistiques
+    _pages = [
+      const LivraisonsSection(),
+      const LivreursSection(),
+      const StatsSection(),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Admin Control Center")),
-
-      body: Row(
-        children: [
-          // 📌 MENU LATÉRAL
-          NavigationRail(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() => selectedIndex = index);
-            },
-            labelType: NavigationRailLabelType.all,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.person),
-                label: Text("Livreurs"),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            const Icon(Icons.local_shipping, size: 20),
+            const SizedBox(width: 8),
+            const Text('RoutePulse'),
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  widget.admin.email,
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                ),
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.local_shipping),
-                label: Text("Livraisons"),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.show_chart),
-                label: Text("Statistiques"),
-              ),
-            ],
+            ),
           ),
-
-          const VerticalDivider(width: 1),
-
-          // 📌 CONTENU
-          Expanded(child: pages[selectedIndex]),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Déconnexion',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (i) => setState(() => _selectedIndex = i),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_shipping_outlined),
+            activeIcon: Icon(Icons.local_shipping),
+            label: 'Livraisons',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_outline),
+            activeIcon: Icon(Icons.people),
+            label: 'Livreurs',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart_outlined),
+            activeIcon: Icon(Icons.bar_chart),
+            label: 'Statistiques',
+          ),
         ],
       ),
     );

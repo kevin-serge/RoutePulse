@@ -1,10 +1,10 @@
-import '../data/database_helper.dart';
+import '../repository/livraison_repository.dart';
 import '../model/user_model.dart';
 
 class UserController {
-  final db = DatabaseHelper();
+  final LivraisonRepository repo = LivraisonRepository();
 
   Future<User?> login(String email, String password) async {
-    return await db.getUserByEmailAndPassword(email, password);
+    return await repo.getUserByEmailAndPassword(email, password);
   }
 }
