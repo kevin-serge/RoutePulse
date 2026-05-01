@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
-import '../repository/livraison_repository.dart';
-import '../model/livraison_model.dart';
-import '../model/user_model.dart';
-import '../widget/rp_widgets.dart';
+import 'dart:async';
+import 'package:routepulse/model/livraison_model.dart';
+import 'package:routepulse/repository/app_repo.dart';
+import 'package:routepulse/model/user_model.dart';
+import 'package:routepulse/widget/rp_widgets.dart';
 
 class StatsSection extends StatefulWidget {
-  const StatsSection({Key? key}) : super(key: key);
+  const StatsSection({super.key});
 
   @override
   State<StatsSection> createState() => _StatsSectionState();
 }
 
 class _StatsSectionState extends State<StatsSection> {
-  final repo = LivraisonRepository();
+  final repo = AppRepo().repo;
+  StreamSubscription? _syncSub;
 
   bool _loading = true;
   Map<String, int> _statsStatuts = {};
@@ -25,13 +27,20 @@ class _StatsSectionState extends State<StatsSection> {
   void initState() {
     super.initState();
     _loadStats();
+    _syncSub = repo.onRefresh.listen((_) => _loadStats());
+  }
+
+  @override
+  void dispose() {
+    _syncSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadStats() async {
     setState(() => _loading = true);
 
     _statsStatuts = await repo.getStatsStatuts();
-    _livraisons = await repo.getAllLivraisons();
+    _livraisons = await repo.getLivraisons();
     _livreurs = await repo.getAllLivreurs();
     _totalLivraisons = _livraisons.length;
     _totalLivreurs = _livreurs.length;
@@ -76,30 +85,44 @@ class _StatsSectionState extends State<StatsSection> {
           Row(
             children: [
               Expanded(
-                  child: _kpiCard('Total livraisons', '$_totalLivraisons',
-                      Icons.local_shipping, RPColors.enCours)),
+                child: _kpiCard(
+                  'Total livraisons',
+                  '$_totalLivraisons',
+                  Icons.local_shipping,
+                  RPColors.enCours,
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
-                  child: _kpiCard('Livreurs actifs', '$_totalLivreurs',
-                      Icons.people, RPColors.primary)),
+                child: _kpiCard(
+                  'Livreurs actifs',
+                  '$_totalLivreurs',
+                  Icons.people,
+                  RPColors.primary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                  child: _kpiCard(
-                      'Taux de réussite',
-                      '${_tauxReussite.toStringAsFixed(0)}%',
-                      Icons.check_circle_outline,
-                      RPColors.livree)),
+                child: _kpiCard(
+                  'Taux de réussite',
+                  '${_tauxReussite.toStringAsFixed(0)}%',
+                  Icons.check_circle_outline,
+                  RPColors.livree,
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
-                  child: _kpiCard(
-                      'Taux de report',
-                      '${_tauxRetard.toStringAsFixed(0)}%',
-                      Icons.schedule,
-                      RPColors.aReporter)),
+                child: _kpiCard(
+                  'Taux de report',
+                  '${_tauxRetard.toStringAsFixed(0)}%',
+                  Icons.schedule,
+                  RPColors.aReporter,
+                ),
+              ),
             ],
           ),
 
@@ -138,21 +161,20 @@ class _StatsSectionState extends State<StatsSection> {
             final ses = _livraisons
                 .where((l) => l.livreurId == livreur.id)
                 .toList();
-            final livrees =
-                ses.where((l) => l.statut == 'livree').length;
+            final livrees = ses.where((l) => l.statut == 'livree').length;
             return Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor:
-                          RPColors.primary.withValues(alpha: 0.12),
+                      backgroundColor: RPColors.primary.withValues(alpha: 0.12),
                       child: Text(
                         livreur.email[0].toUpperCase(),
                         style: const TextStyle(
-                            color: RPColors.primary,
-                            fontWeight: FontWeight.w700),
+                          color: RPColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -162,14 +184,14 @@ class _StatsSectionState extends State<StatsSection> {
                         children: [
                           Text(
                             livreur.email,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           Text(
                             '${ses.length} livraisons • $livrees livrées',
                             style: const TextStyle(
-                                fontSize: 12,
-                                color: RPColors.textSecondary),
+                              fontSize: 12,
+                              color: RPColors.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -181,14 +203,18 @@ class _StatsSectionState extends State<StatsSection> {
                           Text(
                             '${livreur.distanceParcourue.toStringAsFixed(1)}',
                             style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                                color: RPColors.primary),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: RPColors.primary,
+                            ),
                           ),
-                          const Text('km',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: RPColors.textSecondary)),
+                          const Text(
+                            'km',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: RPColors.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                   ],
@@ -212,8 +238,7 @@ class _StatsSectionState extends State<StatsSection> {
     );
   }
 
-  Widget _kpiCard(
-      String label, String value, IconData icon, Color color) {
+  Widget _kpiCard(String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -232,8 +257,9 @@ class _StatsSectionState extends State<StatsSection> {
                 child: Text(
                   label,
                   style: const TextStyle(
-                      fontSize: 11,
-                      color: RPColors.textSecondary),
+                    fontSize: 11,
+                    color: RPColors.textSecondary,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -291,14 +317,17 @@ class _StatsSectionState extends State<StatsSection> {
               Text(
                 '$count',
                 style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: RPColors.textPrimary),
+                  fontWeight: FontWeight.w700,
+                  color: RPColors.textPrimary,
+                ),
               ),
               const SizedBox(width: 4),
               Text(
                 '(${(pct * 100).toStringAsFixed(0)}%)',
                 style: const TextStyle(
-                    fontSize: 12, color: RPColors.textSecondary),
+                  fontSize: 12,
+                  color: RPColors.textSecondary,
+                ),
               ),
             ],
           ),

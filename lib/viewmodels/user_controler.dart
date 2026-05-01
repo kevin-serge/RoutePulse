@@ -2,9 +2,9 @@ import '../repository/livraison_repository.dart';
 import '../model/user_model.dart';
 
 class UserController {
-  final LivraisonRepository repo = LivraisonRepository();
+  final LivraisonRepository _repo = LivraisonRepository();
 
   Future<User?> login(String email, String password) async {
-    return await repo.getUserByEmailAndPassword(email, password);
+    return _repo.getUserByEmailAndPassword(email, password);
   }
 }

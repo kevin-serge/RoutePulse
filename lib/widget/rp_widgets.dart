@@ -107,7 +107,7 @@ class RPTheme {
 // =========================
 class StatutBadge extends StatelessWidget {
   final String statut;
-  const StatutBadge(this.statut, {Key? key}) : super(key: key);
+  const StatutBadge(this.statut, {super.key});
 
   Color get _color {
     switch (statut) {
@@ -169,11 +169,11 @@ class LivraisonCard extends StatelessWidget {
   final Widget? trailing;
 
   const LivraisonCard({
-    Key? key,
+    super.key,
     required this.livraison,
     this.onTap,
     this.trailing,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Livraison {
   int? id;
   String client;
@@ -7,12 +9,13 @@ class Livraison {
   List<String> photos;
   String? notes;
   String? motifAnnulation;
-  String? creneau; // ex: "09:00-11:00"
-  String? articles; // liste articles en texte
+  String? creneau;
+  String? articles;
   int isSynced;
   String? remoteId;
-  String? updatedAt;
-  String? createdAt;
+  bool isDeleted;
+  String? updated_at;
+  String? created_at;
 
   Livraison({
     this.id,
@@ -20,61 +23,62 @@ class Livraison {
     required this.adresse,
     this.statut = 'en_attente',
     this.livreurId,
-    this.photos = const [],
+    List<String>? photos,
     this.notes,
     this.motifAnnulation,
     this.creneau,
     this.articles,
     this.isSynced = 0,
     this.remoteId,
-    this.updatedAt,
-    this.createdAt,
-  });
+    this.isDeleted = false,
+    this.updated_at,
+    this.created_at,
+  }) : photos = photos ?? [];
 
   Map<String, dynamic> toMap() => {
-        'id': id,
+        if (id != null) 'id': id,
         'client': client,
         'adresse': adresse,
         'statut': statut,
         'livreurId': livreurId,
-        'photos': photos.join(','),
+        'photos': jsonEncode(photos),
         'notes': notes,
         'motifAnnulation': motifAnnulation,
         'creneau': creneau,
         'articles': articles,
         'isSynced': isSynced,
         'remoteId': remoteId,
-        'updatedAt': updatedAt ?? DateTime.now().toIso8601String(),
-        'createdAt': createdAt ?? DateTime.now().toIso8601String(),
+        'isDeleted': isDeleted ? 1 : 0,
+        'updated_at': updated_at ?? DateTime.now().toIso8601String(),
+        'created_at': created_at ?? DateTime.now().toIso8601String(),
       };
 
   factory Livraison.fromMap(Map<String, dynamic> map) => Livraison(
-        id: map['id'],
+        id: map['id'] as int?,
         client: map['client'] ?? '',
         adresse: map['adresse'] ?? '',
         statut: map['statut'] ?? 'en_attente',
-        livreurId: map['livreurId'],
-        photos: (map['photos'] != null && map['photos'].toString().isNotEmpty)
-            ? map['photos'].toString().split(',').where((s) => s.isNotEmpty).toList()
-            : [],
+        livreurId: map['livreurId'] as int?,
+        photos: _parsePhotos(map['photos']),
         notes: map['notes'],
         motifAnnulation: map['motifAnnulation'],
         creneau: map['creneau'],
         articles: map['articles'],
-        isSynced: map['isSynced'] ?? 0,
+        isSynced: map['isSynced'] as int? ?? 0,
         remoteId: map['remoteId'],
-        updatedAt: map['updatedAt'],
-        createdAt: map['createdAt'],
+        isDeleted: (map['isDeleted'] as int? ?? 0) == 1,
+        updated_at: map['updated_at'],
+        created_at: map['created_at'],
       );
 
-  /// Retourne la couleur selon le statut (hex string pour référence)
-  static Map<String, String> statutColors = {
-    'en_attente': '#FFA726',
-    'en_cours': '#42A5F5',
-    'a_reporter': '#AB47BC',
-    'annulee': '#EF5350',
-    'livree': '#66BB6A',
-  };
+  static List<String> _parsePhotos(dynamic raw) {
+    if (raw == null) return [];
+    try {
+      final decoded = jsonDecode(raw as String);
+      if (decoded is List) return decoded.map((e) => e.toString()).toList();
+    } catch (_) {}
+    return [];
+  }
 
   static String statutLabel(String statut) {
     const labels = {
@@ -86,4 +90,39 @@ class Livraison {
     };
     return labels[statut] ?? statut;
   }
+
+  Livraison copyWith({
+    int? id,
+    String? client,
+    String? adresse,
+    String? statut,
+    int? livreurId,
+    List<String>? photos,
+    String? notes,
+    String? motifAnnulation,
+    String? creneau,
+    String? articles,
+    int? isSynced,
+    String? remoteId,
+    bool? isDeleted,
+    String? updated_at,
+    String? created_at,
+  }) =>
+      Livraison(
+        id: id ?? this.id,
+        client: client ?? this.client,
+        adresse: adresse ?? this.adresse,
+        statut: statut ?? this.statut,
+        livreurId: livreurId ?? this.livreurId,
+        photos: photos ?? this.photos,
+        notes: notes ?? this.notes,
+        motifAnnulation: motifAnnulation ?? this.motifAnnulation,
+        creneau: creneau ?? this.creneau,
+        articles: articles ?? this.articles,
+        isSynced: isSynced ?? this.isSynced,
+        remoteId: remoteId ?? this.remoteId,
+        isDeleted: isDeleted ?? this.isDeleted,
+        updated_at: updated_at ?? this.updated_at,
+        created_at: created_at ?? this.created_at,
+      );
 }

@@ -1,176 +1,160 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+
 import '../data/database_helper.dart';
 import '../model/livraison_model.dart';
 import '../model/user_model.dart';
+import '../model/client_model.dart';
+import '../model/vehicule_model.dart';
 
 class LivraisonRepository {
   final DatabaseHelper db = DatabaseHelper();
   final SupabaseClient supabase = Supabase.instance.client;
 
-  // ========================
-  // CONNECTIVITE
-  // ========================
+  final _refreshController = StreamController<void>.broadcast();
+  Stream<void> get onRefresh => _refreshController.stream;
+
+  bool _isSyncing = false;
+  RealtimeChannel? _realtimeChannel;
+
+  // ──────────────────────────────────────
+  // CONNECTIVITÉ
+  // ──────────────────────────────────────
   Future<bool> isOnline() async {
     final result = await Connectivity().checkConnectivity();
     return result != ConnectivityResult.none;
   }
 
-  // ========================
-  // AUTH
-  // ========================
-  Future<User?> getUserByEmailAndPassword(String email, String password) async {
-    return await db.getUserByEmailAndPassword(email, password);
+  // ──────────────────────────────────────
+  // AUTH (local SQLite)
+  // ──────────────────────────────────────
+  Future<User?> getUserByEmailAndPassword(
+      String email, String password) async {
+    return db.getUserByEmailAndPassword(email, password);
   }
 
-  // ========================
+  // ──────────────────────────────────────
   // LIVREURS
-  // ========================
-  Future<List<User>> getAllLivreurs() async {
-    return await db.getAllLivreurs();
-  }
+  // ──────────────────────────────────────
+  Future<List<User>> getAllLivreurs() => db.getAllLivreurs();
+  Future<List<User>> getLivreursDisponibles() => db.getLivreursDisponibles();
 
-  Future<List<User>> getLivreursDisponibles() async {
-    return await db.getLivreursDisponibles();
-  }
+  Future<void> addLivreur(User user) async => db.addLivreur(user);
 
-  Future<void> addLivreur(User user) async {
-    await db.addLivreur(user);
-  }
-
-  Future<void> deleteLivreur(int id) async {
-    await db.deleteLivreur(id);
-  }
+  Future<void> deleteLivreur(int id) async => db.deleteLivreur(id);
 
   Future<void> updateLivreurStatus(int userId, String status,
       {double? distance}) async {
     await db.updateLivreurStatus(userId, status, distance: distance);
   }
 
-  // ========================
-  // LIVRAISONS (LOCAL FIRST)
-  // ========================
-  Future<List<Livraison>> getAllLivraisons() async {
-    return await db.getAllLivraisons();
-  }
-
+  // ──────────────────────────────────────
+  // LIVRAISONS
+  // ──────────────────────────────────────
   Future<List<Livraison>> getLivraisons() async {
-    return await db.getAllLivraisons();
+    final local = await db.getAllLivraisons();
+    Future.microtask(syncFromServer);
+    return local;
   }
 
   Future<List<Livraison>> getLivraisonsByLivreur(int livreurId) async {
-    return await db.getLivraisonsByLivreur(livreurId);
+    final local = await db.getLivraisonsByLivreur(livreurId);
+    Future.microtask(syncFromServer);
+    return local;
   }
 
-  Future<List<Livraison>> getLivraisonsDuJour({int? livreurId}) async {
-    return await db.getLivraisonsDuJour(livreurId);
+  Future<void> addLivraison(Livraison l) async {
+    final id = await db.addLivraison(l);
+    if (await isOnline()) await _syncOne(id);
+    _refreshController.add(null);
   }
 
-  Future<void> addLivraison(Livraison livraison) async {
-    final id = await db.addLivraison(livraison);
-    if (await isOnline()) {
-      await _syncOne(id);
-    }
+  Future<void> updateLivraison(Livraison l) async {
+    await db.updateLivraison(l);
+    if (await isOnline()) await _syncOne(l.id!);
+    _refreshController.add(null);
   }
 
-  Future<void> updateLivraison(Livraison livraison) async {
-    await db.updateLivraison(livraison);
-    if (await isOnline() && livraison.remoteId != null) {
-      await _updateRemote(livraison);
-    }
+  Future<void> assignerLivraison(int id, int livreurId) async {
+    await db.assignerLivraison(id, livreurId);
+    if (await isOnline()) await _syncOne(id);
+    _refreshController.add(null);
   }
 
   Future<void> updateStatut(int id, String statut,
       {String? motif, List<String>? photos}) async {
     await db.updateStatut(id, statut, motif: motif, photos: photos);
-
-    if (await isOnline()) {
-      await _syncOne(id);
-    }
-  }
-
-  Future<void> assignerLivraison(int livraisonId, int livreurId) async {
-    await db.assignerLivraison(livraisonId, livreurId);
-    if (await isOnline()) {
-      await _syncOne(livraisonId);
-    }
+    if (await isOnline()) await _syncOne(id);
+    _refreshController.add(null);
   }
 
   Future<void> deleteLivraison(int id) async {
-    await db.deleteLivraison(id);
+    final l = await db.getLivraisonById(id);
+    if (l == null) return;
+
+    await db.softDeleteLivraison(id);
+
+    if (await isOnline() && l.remoteId != null) {
+      try {
+        await supabase.from('livraisons').delete().eq('id', l.remoteId!);
+        await db.markSynced(id, l.remoteId!);
+      } catch (e) {
+        // Sera retenté au prochain syncAll
+        print('[DELETE ERROR] $e');
+      }
+    }
+    _refreshController.add(null);
   }
 
-  // ========================
-  // STATS
-  // ========================
-  Future<Map<String, int>> getStatsStatuts() async {
-    return await db.getStatsStatuts();
-  }
-
-  Future<int> countLivraisons() async {
-    final all = await db.getAllLivraisons();
-    return all.length;
-  }
-
-  Future<int> countLivreurs() async {
-    final all = await db.getAllLivreurs();
-    return all.length;
-  }
-
-  // ========================
-  // SYNC SUPABASE
-  // ========================
+  // ──────────────────────────────────────
+  // SYNC LOCAL → CLOUD
+  // ──────────────────────────────────────
   Future<void> _syncOne(int localId) async {
     try {
-      final all = await db.getAllLivraisons();
-      final l = all.firstWhere((x) => x.id == localId);
+      final l = await db.getLivraisonById(localId);
+      if (l == null) return;
+
+      if (l.isDeleted && l.remoteId != null) {
+        await supabase.from('livraisons').delete().eq('id', l.remoteId!);
+        await db.markSynced(localId, l.remoteId!);
+        return;
+      }
+      if (l.isDeleted) {
+        await db.markSynced(localId, '');
+        return;
+      }
+
+      final payload = {
+        'client': l.client,
+        'adresse': l.adresse,
+        'statut': l.statut,
+        'livreur_id': l.livreurId,
+        'photos': jsonEncode(l.photos),
+        'notes': l.notes,
+        'motif_annulation': l.motifAnnulation,
+        'creneau': l.creneau,
+        'articles': l.articles,
+      };
 
       if (l.remoteId == null) {
-        // INSERT
         final response = await supabase
             .from('livraisons')
-            .insert({
-              'client_nom': l.client,
-              'adresse': l.adresse,
-              'statut': l.statut,
-              'livreur_id': l.livreurId,
-              'photos': l.photos.join(','),
-              'notes': l.notes,
-              'motif_annulation': l.motifAnnulation,
-              'creneau': l.creneau,
-              'articles': l.articles,
-            })
-            .select()
+            .insert(payload)
+            .select('id')
             .single();
-
         await db.markSynced(localId, response['id'].toString());
       } else {
-        // UPDATE
-        await supabase.from('livraisons').update({
-          'statut': l.statut,
-          'livreur_id': l.livreurId,
-          'photos': l.photos.join(','),
-          'notes': l.notes,
-          'motif_annulation': l.motifAnnulation,
-        }).eq('id', l.remoteId!);
-
+        await supabase
+            .from('livraisons')
+            .update(payload)
+            .eq('id', l.remoteId!);
         await db.markSynced(localId, l.remoteId!);
       }
     } catch (e) {
-      // Offline ou erreur Supabase → on laisse isSynced=0, sera retenté plus tard
+      print('[SYNC ERROR] _syncOne($localId): $e');
     }
-  }
-
-  Future<void> _updateRemote(Livraison l) async {
-    try {
-      await supabase.from('livraisons').update({
-        'statut': l.statut,
-        'livreur_id': l.livreurId,
-        'photos': l.photos.join(','),
-        'notes': l.notes,
-        'motif_annulation': l.motifAnnulation,
-      }).eq('id', l.remoteId!);
-    } catch (_) {}
   }
 
   Future<void> syncAll() async {
@@ -181,23 +165,67 @@ class LivraisonRepository {
     }
   }
 
-  /// Sync temps réel descendante (cloud → local)
-  void startRealtimeSync() {
-    supabase.from('livraisons').stream(primaryKey: ['id']).listen((data) async {
-      for (var item in data) {
-        final l = Livraison(
-          client: item['client_nom'] ?? '',
-          adresse: item['adresse'] ?? '',
-          statut: item['statut'] ?? 'en_attente',
-          livreurId: item['livreur_id'],
-          remoteId: item['id']?.toString(),
-          isSynced: 1,
-          notes: item['notes'],
-          creneau: item['creneau'],
-          articles: item['articles'],
-        );
-        await db.addLivraison(l);
+  // ──────────────────────────────────────
+  // SYNC CLOUD → LOCAL
+  // ──────────────────────────────────────
+  Future<void> syncFromServer() async {
+    if (!await isOnline() || _isSyncing) return;
+    _isSyncing = true;
+    try {
+      final remote = await supabase.from('livraisons').select();
+      for (final item in remote) {
+        await db.upsertFromRemote(item);
       }
-    });
+      _refreshController.add(null);
+    } catch (e) {
+      print('[SYNC ERROR] syncFromServer: $e');
+    } finally {
+      _isSyncing = false;
+    }
   }
+
+  // ──────────────────────────────────────
+  // REALTIME
+  // ──────────────────────────────────────
+  void startRealtimeSync() {
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = supabase
+        .channel('livraisons_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'livraisons',
+          callback: (payload) async {
+            if (_isSyncing) return;
+            await syncFromServer();
+          },
+        )
+        .subscribe();
+  }
+
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    _refreshController.close();
+  }
+
+  // ──────────────────────────────────────
+  // CLIENTS
+  // ──────────────────────────────────────
+  Future<List<Client>> getAllClients() => db.getAllClients();
+  Future<void> addClient(Client c) async => db.addClient(c);
+  Future<void> updateClient(Client c) async => db.updateClient(c);
+  Future<void> deleteClient(int id) async => db.deleteClient(id);
+
+  // ──────────────────────────────────────
+  // VEHICULES
+  // ──────────────────────────────────────
+  Future<List<Vehicule>> getAllVehicules() => db.getAllVehicules();
+  Future<void> addVehicule(Vehicule v) async => db.addVehicule(v);
+  Future<void> updateVehicule(Vehicule v) async => db.updateVehicule(v);
+  Future<void> deleteVehicule(int id) async => db.deleteVehicule(id);
+
+  // ──────────────────────────────────────
+  // STATS
+  // ──────────────────────────────────────
+  Future<Map<String, int>> getStatsStatuts() => db.getStatsStatuts();
 }
